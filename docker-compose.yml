@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: grocery-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    environment:
+      PORT: ${AUTH_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: http://localhost:${FRONTEND_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${AUTH_PORT}:4001"
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: services/catalog-service/Dockerfile
+    environment:
+      PORT: ${CATALOG_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CORS_ORIGIN: http://localhost:${FRONTEND_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${CATALOG_PORT}:4002"
+
+  orders-service:
+    build:
+      context: .
+      dockerfile: services/orders-service/Dockerfile
+    environment:
+      PORT: ${ORDERS_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: http://localhost:${FRONTEND_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ORDERS_PORT}:4003"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - auth-service
+      - catalog-service
+      - orders-service
+    ports:
+      - "${FRONTEND_PORT}:80"
+
+volumes:
+  postgres_data:
