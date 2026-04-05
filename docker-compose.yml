@@ -26,6 +26,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: http://localhost:${FRONTEND_PORT}
+      ADMIN_LOGIN: ${ADMIN_LOGIN}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME}
+      ADMIN_ADDRESS: ${ADMIN_ADDRESS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,6 +43,7 @@ services:
     environment:
       PORT: ${CATALOG_PORT}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: http://localhost:${FRONTEND_PORT}
     depends_on:
       postgres:

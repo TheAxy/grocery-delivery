@@ -1,5 +1,6 @@
 import { Product } from '@grocery-delivery/shared'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAppStore } from '../store'
 
@@ -13,6 +14,7 @@ export function ProductsPage() {
   const [error, setError] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [placingOrder, setPlacingOrder] = useState(false)
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     setDeliveryAddress(user?.address || '')
@@ -50,7 +52,7 @@ export function ProductsPage() {
 
   const onOrder = async (event: FormEvent) => {
     event.preventDefault()
-    if (!token) {
+    if (!token || isAdmin) {
       return
     }
 
@@ -75,7 +77,7 @@ export function ProductsPage() {
         <div className="section-head">
           <div>
             <h2>Каталог</h2>
-            <p>Выберите продукты и добавьте их в заказ</p>
+            <p>{isAdmin ? 'Просмотр товаров доступен и в режиме администратора' : 'Выберите продукты и добавьте их в заказ'}</p>
           </div>
         </div>
 
@@ -105,7 +107,7 @@ export function ProductsPage() {
                   <p>{product.description}</p>
                   <div className="price-row">
                     <strong>{product.price.toFixed(2)} ₽</strong>
-                    <button onClick={() => addToCart(product)} type="button">В корзину</button>
+                    {!isAdmin && <button onClick={() => addToCart(product)} type="button">В корзину</button>}
                   </div>
                 </div>
               </article>
@@ -115,57 +117,67 @@ export function ProductsPage() {
       </section>
 
       <aside className="panel">
-        <div className="section-head">
-          <div>
-            <h2>Корзина</h2>
-            <p>Оформление доставки</p>
+        {isAdmin ? (
+          <div className="admin-note">
+            <h2>Режим администратора</h2>
+            <p>Для управления карточками товаров используйте административный раздел.</p>
+            <Link className="admin-link" to="/admin/products">Перейти в админку</Link>
           </div>
-        </div>
-
-        {cartView.length === 0 ? (
-          <div className="placeholder">Корзина пуста</div>
         ) : (
-          <div className="cart-list">
-            {cartView.map((item) => (
-              <div className="cart-item" key={item.id}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>{item.price.toFixed(2)} ₽ за единицу</span>
-                </div>
-                <div className="cart-actions">
-                  <input
-                    type="number"
-                    min={1}
-                    value={item.quantity}
-                    onChange={(event) => changeQuantity(item.id, Number(event.target.value))}
-                  />
-                  <button type="button" className="danger-button" onClick={() => removeFromCart(item.id)}>Удалить</button>
-                </div>
-                <div className="line-total">{item.lineTotal.toFixed(2)} ₽</div>
+          <>
+            <div className="section-head">
+              <div>
+                <h2>Корзина</h2>
+                <p>Оформление доставки</p>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
 
-        <form className="form" onSubmit={onOrder}>
-          <label>
-            <span>Адрес доставки</span>
-            <textarea
-              rows={4}
-              value={deliveryAddress}
-              onChange={(event) => setDeliveryAddress(event.target.value)}
-            />
-          </label>
-          <div className="summary">
-            <span>Итог</span>
-            <strong>{cartTotal.toFixed(2)} ₽</strong>
-          </div>
-          {message && <div className="success">{message}</div>}
-          {error && <div className="error">{error}</div>}
-          <button type="submit" disabled={!cartView.length || placingOrder}>
-            {placingOrder ? 'Оформление...' : 'Оформить заказ'}
-          </button>
-        </form>
+            {cartView.length === 0 ? (
+              <div className="placeholder">Корзина пуста</div>
+            ) : (
+              <div className="cart-list">
+                {cartView.map((item) => (
+                  <div className="cart-item" key={item.id}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <span>{item.price.toFixed(2)} ₽ за единицу</span>
+                    </div>
+                    <div className="cart-actions">
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(event) => changeQuantity(item.id, Number(event.target.value))}
+                      />
+                      <button type="button" className="danger-button" onClick={() => removeFromCart(item.id)}>Удалить</button>
+                    </div>
+                    <div className="line-total">{item.lineTotal.toFixed(2)} ₽</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form className="form" onSubmit={onOrder}>
+              <label>
+                <span>Адрес доставки</span>
+                <textarea
+                  rows={4}
+                  value={deliveryAddress}
+                  onChange={(event) => setDeliveryAddress(event.target.value)}
+                />
+              </label>
+              <div className="summary">
+                <span>Итог</span>
+                <strong>{cartTotal.toFixed(2)} ₽</strong>
+              </div>
+              {message && <div className="success">{message}</div>}
+              {error && <div className="error">{error}</div>}
+              <button type="submit" disabled={!cartView.length || placingOrder}>
+                {placingOrder ? 'Оформление...' : 'Оформить заказ'}
+              </button>
+            </form>
+          </>
+        )}
       </aside>
     </div>
   )

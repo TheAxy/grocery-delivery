@@ -1,5 +1,6 @@
-import { NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import { AdminProductsPage } from './pages/AdminProductsPage'
 import { LoginPage } from './pages/LoginPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { ProductsPage } from './pages/ProductsPage'
@@ -8,12 +9,16 @@ import { RegisterPage } from './pages/RegisterPage'
 import { useAppStore } from './store'
 
 function ProtectedRoutes() {
+  const { user } = useAppStore()
+  const isAdmin = user?.role === 'admin'
+
   return (
     <Routes>
       <Route path="/" element={<ProductsPage />} />
-      <Route path="/orders" element={<OrdersPage />} />
+      <Route path="/orders" element={isAdmin ? <Navigate to="/admin/products" replace /> : <OrdersPage />} />
       <Route path="/profile" element={<ProfilePage />} />
-      <Route path="*" element={<ProductsPage />} />
+      <Route path="/admin/products" element={isAdmin ? <AdminProductsPage /> : <Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to={isAdmin ? '/admin/products' : '/'} replace />} />
     </Routes>
   )
 }
@@ -49,7 +54,8 @@ export default function App() {
           {token ? (
             <>
               <NavLink to="/">Каталог</NavLink>
-              <NavLink to="/orders">Заказы</NavLink>
+              {user?.role !== 'admin' && <NavLink to="/orders">Заказы</NavLink>}
+              {user?.role === 'admin' && <NavLink to="/admin/products">Админка</NavLink>}
               <NavLink to="/profile">Профиль</NavLink>
               <button className="ghost-button" onClick={() => {
                 logout()
@@ -68,7 +74,7 @@ export default function App() {
         {token ? <ProtectedRoutes /> : <GuestRoutes />}
       </main>
       <footer className="footer">
-        <span>Пользователь: {user ? user.name : 'гость'}</span>
+        <span>Пользователь: {user ? `${user.name} (${user.role})` : 'гость'}</span>
       </footer>
     </div>
   )

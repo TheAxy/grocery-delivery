@@ -33,7 +33,7 @@ export const authOpenApi = {
         type: 'object',
         required: ['email', 'password'],
         properties: {
-          email: { type: 'string' },
+          email: { type: 'string', description: 'Email пользователя или логин администратора' },
           password: { type: 'string' }
         }
       },
@@ -96,7 +96,7 @@ export const authOpenApi = {
     },
     '/api/auth/login': {
       post: {
-        summary: 'Вход пользователя',
+        summary: 'Вход пользователя или администратора',
         requestBody: {
           required: true,
           content: {

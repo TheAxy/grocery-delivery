@@ -2,19 +2,78 @@ import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
 import swaggerUi from 'swagger-ui-express'
-import { Product } from '@grocery-delivery/shared'
+import { Product, ProductPayload } from '@grocery-delivery/shared'
+import { requireAdmin } from './auth'
 import { config } from './config'
 import { pool } from './db'
 import { catalogOpenApi } from './swagger'
 
-
 type AsyncHandler = (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<unknown>
+
+type ProductRow = {
+  id: number
+  name: string
+  description: string
+  category: string
+  price: number
+  imageUrl: string
+}
 
 const asyncHandler = (handler: AsyncHandler) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
   Promise.resolve(handler(req, res, next)).catch(next)
 }
 
 const app = express()
+
+function mapProduct(row: ProductRow): Product {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    price: Number(row.price),
+    imageUrl: row.imageUrl
+  }
+}
+
+type ProductPayloadValidation =
+  | { error: string; value?: never }
+  | {
+      error?: never
+      value: {
+        name: string
+        description: string
+        category: string
+        imageUrl: string
+        price: number
+      }
+    }
+
+function validateProductPayload(body: ProductPayload): ProductPayloadValidation {
+  const name = body.name?.trim()
+  const description = body.description?.trim()
+  const category = body.category?.trim()
+  const imageUrl = body.imageUrl?.trim()
+  const price = Number(body.price)
+
+  if (!name || !description || !category || !imageUrl) {
+    return { error: 'Все поля товара обязательны' }
+  }
+
+  if (!Number.isFinite(price) || price < 0) {
+    return { error: 'Цена должна быть неотрицательным числом' }
+  }
+
+  return {
+    value: {
+      name,
+      description,
+      category,
+      imageUrl,
+      price
+    }
+  }
+}
 
 app.use(helmet())
 app.use(cors({ origin: config.corsOrigin }))
@@ -53,7 +112,7 @@ app.get('/api/catalog/products', asyncHandler(async (req, res) => {
     ORDER BY id
   `
   const result = await pool.query(query, params)
-  res.json(result.rows as Product[])
+  res.json((result.rows as ProductRow[]).map(mapProduct))
 }))
 
 app.get('/api/catalog/products/:id', asyncHandler(async (req, res) => {
@@ -75,7 +134,88 @@ app.get('/api/catalog/products/:id', asyncHandler(async (req, res) => {
     return
   }
 
-  res.json(result.rows[0])
+  res.json(mapProduct(result.rows[0] as ProductRow))
+}))
+
+app.post('/api/catalog/products', requireAdmin, asyncHandler(async (req, res) => {
+  const payload = validateProductPayload(req.body as ProductPayload)
+  if ('error' in payload) {
+    res.status(400).json({ message: payload.error })
+    return
+  }
+
+  const value = payload.value
+
+  const result = await pool.query(
+    `INSERT INTO products (name, description, category, price, image_url)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, name, description, category, price::float AS price, image_url AS "imageUrl"`,
+    [value.name, value.description, value.category, value.price, value.imageUrl]
+  )
+
+  res.status(201).json(mapProduct(result.rows[0] as ProductRow))
+}))
+
+app.put('/api/catalog/products/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const productId = Number(req.params.id)
+  if (!Number.isInteger(productId)) {
+    res.status(400).json({ message: 'Некорректный идентификатор продукта' })
+    return
+  }
+
+  const payload = validateProductPayload(req.body as ProductPayload)
+  if ('error' in payload) {
+    res.status(400).json({ message: payload.error })
+    return
+  }
+
+  const value = payload.value
+
+  const result = await pool.query(
+    `UPDATE products
+     SET name = $1, description = $2, category = $3, price = $4, image_url = $5
+     WHERE id = $6
+     RETURNING id, name, description, category, price::float AS price, image_url AS "imageUrl"`,
+    [value.name, value.description, value.category, value.price, value.imageUrl, productId]
+  )
+
+  if (!result.rowCount) {
+    res.status(404).json({ message: 'Продукт не найден' })
+    return
+  }
+
+  res.json(mapProduct(result.rows[0] as ProductRow))
+}))
+
+app.delete('/api/catalog/products/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const productId = Number(req.params.id)
+  if (!Number.isInteger(productId)) {
+    res.status(400).json({ message: 'Некорректный идентификатор продукта' })
+    return
+  }
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM products
+       WHERE id = $1
+       RETURNING id, name, description, category, price::float AS price, image_url AS "imageUrl"`,
+      [productId]
+    )
+
+    if (!result.rowCount) {
+      res.status(404).json({ message: 'Продукт не найден' })
+      return
+    }
+
+    res.json(mapProduct(result.rows[0] as ProductRow))
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === '23503') {
+      res.status(400).json({ message: 'Нельзя удалить товар, который уже есть в заказах' })
+      return
+    }
+
+    throw error
+  }
 }))
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

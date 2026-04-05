@@ -9,7 +9,6 @@ import { config } from './config'
 import { pool } from './db'
 import { authOpenApi } from './swagger'
 
-
 type AsyncHandler = (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<unknown>
 
 const asyncHandler = (handler: AsyncHandler) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -17,6 +16,16 @@ const asyncHandler = (handler: AsyncHandler) => (req: express.Request, res: expr
 }
 
 const app = express()
+
+function buildAdminUser(): UserPublic {
+  return {
+    id: 0,
+    name: config.adminName,
+    email: config.adminLogin,
+    role: 'admin',
+    address: config.adminAddress
+  }
+}
 
 app.use(helmet())
 app.use(cors({ origin: config.corsOrigin }))
@@ -57,7 +66,7 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
     )
 
     const user = result.rows[0] as UserPublic
-    const token = signToken(user.id)
+    const token = signToken(user.id, user.role)
     res.status(201).json({ token, user })
   } catch (error) {
     const message = error instanceof Error && 'code' in error && error.code === '23505'
@@ -69,23 +78,31 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 
 app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const body = req.body as LoginRequest
-  const email = body.email?.trim().toLowerCase()
+  const email = body.email?.trim()
   const password = body.password?.trim()
 
   if (!email || !password) {
-    res.status(400).json({ message: 'Email и пароль обязательны' })
+    res.status(400).json({ message: 'Логин и пароль обязательны' })
     return
   }
 
+  if (email === config.adminLogin && password === config.adminPassword) {
+    const user = buildAdminUser()
+    const token = signToken(null, 'admin')
+    res.json({ token, user })
+    return
+  }
+
+  const normalizedEmail = email.toLowerCase()
   const result = await pool.query(
     `SELECT id, name, email, role, address, password_hash
      FROM users
      WHERE email = $1`,
-    [email]
+    [normalizedEmail]
   )
 
   if (!result.rowCount) {
-    res.status(401).json({ message: 'Неверный email или пароль' })
+    res.status(401).json({ message: 'Неверный логин или пароль' })
     return
   }
 
@@ -93,7 +110,7 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const isValid = await bcrypt.compare(password, row.password_hash)
 
   if (!isValid) {
-    res.status(401).json({ message: 'Неверный email или пароль' })
+    res.status(401).json({ message: 'Неверный логин или пароль' })
     return
   }
 
@@ -105,11 +122,21 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
     address: row.address
   }
 
-  const token = signToken(user.id)
+  const token = signToken(user.id, user.role)
   res.json({ token, user })
 }))
 
 app.get('/api/auth/me', requireAuth, asyncHandler(async (req, res) => {
+  if (req.userRole === 'admin') {
+    res.json(buildAdminUser())
+    return
+  }
+
+  if (!Number.isInteger(req.userId)) {
+    res.status(401).json({ message: 'Недействительный токен' })
+    return
+  }
+
   const result = await pool.query(
     `SELECT id, name, email, role, address
      FROM users

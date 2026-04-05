@@ -34,6 +34,14 @@ export interface Product {
   imageUrl: string
 }
 
+export interface ProductPayload {
+  name: string
+  description: string
+  category: string
+  price: number
+  imageUrl: string
+}
+
 export type OrderStatus = 'created' | 'cancelled'
 
 export interface CreateOrderItemRequest {

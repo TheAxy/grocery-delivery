@@ -8,11 +8,7 @@ interface TokenPayload {
   role: UserRole
 }
 
-export function signToken(userId: number | null, role: UserRole): string {
-  return jwt.sign({ userId, role }, config.jwtSecret, { expiresIn: '7d' })
-}
-
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization
   if (!header || !header.startsWith('Bearer ')) {
     res.status(401).json({ message: 'Требуется авторизация' })
@@ -24,6 +20,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     const payload = jwt.verify(token, config.jwtSecret) as TokenPayload
     req.userId = payload.userId
     req.userRole = payload.role
+
+    if (payload.role !== 'admin') {
+      res.status(403).json({ message: 'Недостаточно прав' })
+      return
+    }
+
     next()
   } catch {
     res.status(401).json({ message: 'Недействительный токен' })

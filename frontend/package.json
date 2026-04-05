@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build:shared": "npm run build --prefix ../shared",
-    "build": "npm run build:shared && tsc -p tsconfig.json && vite build",
+    "build": "npm run build:shared && node ./node_modules/typescript/bin/tsc -p tsconfig.json && node ./node_modules/vite/bin/vite.js build",
     "dev": "vite"
   },
   "dependencies": {

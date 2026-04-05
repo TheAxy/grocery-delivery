@@ -1,4 +1,4 @@
-import { AuthResponse, CreateOrderRequest, LoginRequest, Order, Product, RegisterRequest, UserPublic } from '@grocery-delivery/shared'
+import { AuthResponse, CreateOrderRequest, LoginRequest, Order, Product, ProductPayload, RegisterRequest, UserPublic } from '@grocery-delivery/shared'
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const response = await fetch(path, {
@@ -46,6 +46,23 @@ export const api = {
     }
     const suffix = query.toString() ? `?${query.toString()}` : ''
     return request<Product[]>(`/api/catalog/products${suffix}`)
+  },
+  createProduct(payload: ProductPayload, token: string) {
+    return request<Product>('/api/catalog/products', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }, token)
+  },
+  updateProduct(productId: number, payload: ProductPayload, token: string) {
+    return request<Product>(`/api/catalog/products/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }, token)
+  },
+  deleteProduct(productId: number, token: string) {
+    return request<Product>(`/api/catalog/products/${productId}`, {
+      method: 'DELETE'
+    }, token)
   },
   createOrder(payload: CreateOrderRequest, token: string) {
     return request<Order>('/api/orders', {

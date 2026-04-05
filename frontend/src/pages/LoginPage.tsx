@@ -19,7 +19,7 @@ export function LoginPage() {
     try {
       const response = await api.login({ email, password })
       setAuth(response)
-      navigate('/')
+      navigate(response.user.role === 'admin' ? '/admin/products' : '/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось выполнить вход')
     } finally {
@@ -32,8 +32,8 @@ export function LoginPage() {
       <h2>Вход</h2>
       <form className="form" onSubmit={onSubmit}>
         <label>
-          <span>Email</span>
-          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+          <span>Email или логин</span>
+          <input value={email} onChange={(event) => setEmail(event.target.value)} type="text" />
         </label>
         <label>
           <span>Пароль</span>
