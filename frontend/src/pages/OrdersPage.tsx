@@ -1,49 +1,19 @@
-import { useEffect, useState } from 'react'
-import { Order } from '@grocery-delivery/shared'
-import { api } from '../api'
-import { useAppStore } from '../store'
+import { observer } from 'mobx-react-lite'
+import { useOrdersResource, useOrderActions } from '../state/manager'
 
-export function OrdersPage() {
-  const { token } = useAppStore()
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+export const OrdersPage = observer(function OrdersPage() {
+  const ordersQuery = useOrdersResource()
+  const { cancelOrder } = useOrderActions()
+  const orders = ordersQuery.data
 
-  const loadOrders = async () => {
-    if (!token) {
-      return
-    }
-
-    setLoading(true)
-    setError('')
+  const onCancel = async (orderId: number) => {
     try {
-      const response = await api.orders(token)
-      setOrders(response)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить заказы')
-    } finally {
-      setLoading(false)
+      await cancelOrder(orderId)
+    } catch {
     }
   }
 
-  const cancelOrder = async (orderId: number) => {
-    if (!token) {
-      return
-    }
-
-    try {
-      const updated = await api.cancelOrder(orderId, token)
-      setOrders((current) => current.map((order) => order.id === orderId ? updated : order))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось отменить заказ')
-    }
-  }
-
-  useEffect(() => {
-    loadOrders()
-  }, [])
-
-  if (loading) {
+  if (ordersQuery.loading) {
     return <div className="panel"><div className="placeholder">Загрузка заказов...</div></div>
   }
 
@@ -55,7 +25,7 @@ export function OrdersPage() {
           <p>История оформленных доставок</p>
         </div>
       </div>
-      {error && <div className="error">{error}</div>}
+      {ordersQuery.error && <div className="error">{ordersQuery.error}</div>}
       {!orders.length ? (
         <div className="placeholder">У вас пока нет заказов</div>
       ) : (
@@ -67,15 +37,15 @@ export function OrdersPage() {
                   <h3>Заказ #{order.id}</h3>
                   <p>{new Date(order.createdAt).toLocaleString('ru-RU')}</p>
                 </div>
-                <div className={`status ${order.status}`}>{order.status === 'created' ? 'создан' : 'отменён'}</div>
+                <span className={`status status-${order.status}`}>{order.status}</span>
               </div>
               <p><strong>Адрес:</strong> {order.deliveryAddress}</p>
               <div className="order-items">
                 {order.items.map((item) => (
-                  <div key={`${order.id}-${item.productId}`} className="order-item">
+                  <div key={`${order.id}-${item.productId}`} className="order-item-row">
                     <span>{item.productName}</span>
-                    <span>{item.quantity} шт.</span>
-                    <span>{item.total.toFixed(2)} ₽</span>
+                    <span>{item.quantity} × {item.price.toFixed(2)} ₽</span>
+                    <strong>{item.total.toFixed(2)} ₽</strong>
                   </div>
                 ))}
               </div>
@@ -84,7 +54,7 @@ export function OrdersPage() {
                 <strong>{order.total.toFixed(2)} ₽</strong>
               </div>
               {order.status === 'created' && (
-                <button className="danger-button" onClick={() => cancelOrder(order.id)}>Отменить заказ</button>
+                <button className="danger-button" onClick={() => onCancel(order.id)}>Отменить заказ</button>
               )}
             </article>
           ))}
@@ -92,4 +62,4 @@ export function OrdersPage() {
       )}
     </section>
   )
-}
+})

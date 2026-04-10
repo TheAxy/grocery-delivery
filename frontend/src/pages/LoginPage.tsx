@@ -1,11 +1,11 @@
+import { observer } from 'mobx-react-lite'
 import { FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../api'
-import { useAppStore } from '../store'
+import { useSessionModel } from '../state/manager'
 
-export function LoginPage() {
+export const LoginPage = observer(function LoginPage() {
   const navigate = useNavigate()
-  const { setAuth } = useAppStore()
+  const { login } = useSessionModel()
   const [email, setEmail] = useState('anna@example.com')
   const [password, setPassword] = useState('password123')
   const [error, setError] = useState('')
@@ -17,8 +17,7 @@ export function LoginPage() {
     setError('')
 
     try {
-      const response = await api.login({ email, password })
-      setAuth(response)
+      const response = await login({ email, password })
       navigate(response.user.role === 'admin' ? '/admin/products' : '/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось выполнить вход')
@@ -47,4 +46,4 @@ export function LoginPage() {
       </p>
     </div>
   )
-}
+})

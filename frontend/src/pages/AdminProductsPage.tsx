@@ -1,8 +1,8 @@
-import { Product, ProductPayload } from '@grocery-delivery/shared'
-import { FormEvent, useEffect, useState } from 'react'
+import { observer } from 'mobx-react-lite'
+import { ProductPayload } from '@grocery-delivery/shared'
+import { FormEvent, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { api } from '../api'
-import { useAppStore } from '../store'
+import { useAdminProductActions, useProductsResource, useSessionModel } from '../state/manager'
 
 const initialForm: ProductPayload = {
   name: '',
@@ -12,32 +12,15 @@ const initialForm: ProductPayload = {
   imageUrl: ''
 }
 
-export function AdminProductsPage() {
-  const { token, user } = useAppStore()
-  const [products, setProducts] = useState<Product[]>([])
+export const AdminProductsPage = observer(function AdminProductsPage() {
+  const { user } = useSessionModel()
+  const productsQuery = useProductsResource()
+  const { createProduct, updateProduct, deleteProduct, isSaving, error: mutationError } = useAdminProductActions()
+  const products = [...productsQuery.data].sort((a, b) => a.id - b.id)
   const [form, setForm] = useState<ProductPayload>(initialForm)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-
-  const loadProducts = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await api.products()
-      setProducts(response)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить товары')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadProducts()
-  }, [])
 
   if (!user) {
     return null
@@ -54,11 +37,6 @@ export function AdminProductsPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!token) {
-      return
-    }
-
-    setSaving(true)
     setError('')
     setMessage('')
 
@@ -69,23 +47,19 @@ export function AdminProductsPage() {
       }
 
       if (editingId) {
-        const updated = await api.updateProduct(editingId, payload, token)
-        setProducts((current) => current.map((product) => product.id === editingId ? updated : product))
+        await updateProduct(editingId, payload)
         setMessage('Товар обновлён')
       } else {
-        const created = await api.createProduct(payload, token)
-        setProducts((current) => [...current, created].sort((a, b) => a.id - b.id))
+        await createProduct(payload)
         setMessage('Товар добавлен')
       }
       resetForm()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось сохранить товар')
-    } finally {
-      setSaving(false)
     }
   }
 
-  const onEdit = (product: Product) => {
+  const onEdit = (product: typeof products[number]) => {
     setEditingId(product.id)
     setForm({
       name: product.name,
@@ -99,16 +73,11 @@ export function AdminProductsPage() {
   }
 
   const onDelete = async (productId: number) => {
-    if (!token) {
-      return
-    }
-
     setError('')
     setMessage('')
 
     try {
-      await api.deleteProduct(productId, token)
-      setProducts((current) => current.filter((product) => product.id !== productId))
+      await deleteProduct(productId)
       if (editingId === productId) {
         resetForm()
       }
@@ -127,9 +96,9 @@ export function AdminProductsPage() {
             <p>Добавление, редактирование и удаление карточек каталога</p>
           </div>
         </div>
-        {error && <div className="error">{error}</div>}
+        {(error || mutationError || productsQuery.error) && <div className="error">{error || mutationError || productsQuery.error}</div>}
         {message && <div className="success">{message}</div>}
-        {loading ? (
+        {productsQuery.loading ? (
           <div className="placeholder">Загрузка товаров...</div>
         ) : (
           <div className="admin-products">
@@ -184,11 +153,11 @@ export function AdminProductsPage() {
             <input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} />
           </label>
           <div className="form-actions">
-            <button type="submit" disabled={saving}>{saving ? 'Сохранение...' : editingId ? 'Сохранить изменения' : 'Добавить товар'}</button>
+            <button type="submit" disabled={isSaving}>{isSaving ? 'Сохранение...' : editingId ? 'Сохранить изменения' : 'Добавить товар'}</button>
             <button type="button" className="ghost-button" onClick={resetForm}>Сбросить</button>
           </div>
         </form>
       </aside>
     </div>
   )
-}
+})

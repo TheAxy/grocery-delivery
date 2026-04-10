@@ -1,16 +1,15 @@
+import { observer } from 'mobx-react-lite'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
 import { AdminProductsPage } from './pages/AdminProductsPage'
 import { LoginPage } from './pages/LoginPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
-import { useAppStore } from './store'
+import { useSessionModel } from './state/manager'
 
-function ProtectedRoutes() {
-  const { user } = useAppStore()
-  const isAdmin = user?.role === 'admin'
+const ProtectedRoutes = observer(function ProtectedRoutes() {
+  const { isAdmin } = useSessionModel()
 
   return (
     <Routes>
@@ -21,7 +20,7 @@ function ProtectedRoutes() {
       <Route path="*" element={<Navigate to={isAdmin ? '/admin/products' : '/'} replace />} />
     </Routes>
   )
-}
+})
 
 function GuestRoutes() {
   return (
@@ -33,15 +32,13 @@ function GuestRoutes() {
   )
 }
 
-export default function App() {
-  const { token, user, refreshProfile, logout } = useAppStore()
+const App = observer(function App() {
+  const { isAuthenticated, user, isAdmin, logout, isBootstrapping } = useSessionModel()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    if (token) {
-      refreshProfile().catch(() => logout())
-    }
-  }, [token])
+  if (isAuthenticated && isBootstrapping && !user) {
+    return <div className="panel"><div className="placeholder">Загрузка профиля...</div></div>
+  }
 
   return (
     <div className="shell">
@@ -51,11 +48,11 @@ export default function App() {
           <p>Личный кабинет доставки продуктов питания</p>
         </div>
         <nav className="nav">
-          {token ? (
+          {isAuthenticated ? (
             <>
               <NavLink to="/">Каталог</NavLink>
-              {user?.role !== 'admin' && <NavLink to="/orders">Заказы</NavLink>}
-              {user?.role === 'admin' && <NavLink to="/admin/products">Админка</NavLink>}
+              {!isAdmin && <NavLink to="/orders">Заказы</NavLink>}
+              {isAdmin && <NavLink to="/admin/products">Админка</NavLink>}
               <NavLink to="/profile">Профиль</NavLink>
               <button className="ghost-button" onClick={() => {
                 logout()
@@ -71,11 +68,14 @@ export default function App() {
         </nav>
       </header>
       <main className="content">
-        {token ? <ProtectedRoutes /> : <GuestRoutes />}
+        {isAuthenticated ? <ProtectedRoutes /> : <GuestRoutes />}
       </main>
       <footer className="footer">
         <span>Пользователь: {user ? `${user.name} (${user.role})` : 'гость'}</span>
+        <span>Менеджер состояний: {import.meta.env.VITE_STATE_MANAGER === 'mobx' ? 'MobX' : 'Redux RTK'}</span>
       </footer>
     </div>
   )
-}
+})
+
+export default App
