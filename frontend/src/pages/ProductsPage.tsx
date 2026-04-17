@@ -1,54 +1,73 @@
-import { observer } from 'mobx-react-lite'
 import { Product } from '@grocery-delivery/shared'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useCartModel, useOrderActions, useProductsResource, useSessionModel } from '../state/manager'
+import { api } from '../api'
+import { useAppStore } from '../store'
 
-export const ProductsPage = observer(function ProductsPage() {
-  const { user, isAdmin } = useSessionModel()
-  const { cart, addToCart, changeQuantity, clearCart, removeFromCart } = useCartModel()
+export function ProductsPage() {
+  const { token, user, cart, addToCart, changeQuantity, clearCart, removeFromCart } = useAppStore()
+  const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState(user?.address || '')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const productsQuery = useProductsResource(search, category)
-  const { createOrder, isCreating } = useOrderActions()
+  const [loadingProducts, setLoadingProducts] = useState(true)
+  const [placingOrder, setPlacingOrder] = useState(false)
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     setDeliveryAddress(user?.address || '')
   }, [user])
 
-  const products = productsQuery.data
-  const categories = Array.from(new Set(products.map((product) => product.category)))
+  const loadProducts = async () => {
+    setLoadingProducts(true)
+    try {
+      const response = await api.products(search, category)
+      setProducts(response)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить каталог')
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
 
-  const cartView = cart.map((item) => {
+  useEffect(() => {
+    loadProducts()
+  }, [])
+
+  const categories = useMemo(() => Array.from(new Set(products.map((product) => product.category))), [products])
+
+  const cartView = useMemo(() => cart.map((item) => {
     const product = products.find((entry) => entry.id === item.productId)
     return product ? { ...product, quantity: item.quantity, lineTotal: product.price * item.quantity } : null
-  }).filter(Boolean) as Array<Product & { quantity: number; lineTotal: number }>
+  }).filter(Boolean) as Array<Product & { quantity: number; lineTotal: number }>, [cart, products])
 
   const cartTotal = cartView.reduce((sum, item) => sum + item.lineTotal, 0)
 
   const onSearch = async (event: FormEvent) => {
     event.preventDefault()
-    productsQuery.refetch()
+    await loadProducts()
   }
 
   const onOrder = async (event: FormEvent) => {
     event.preventDefault()
-    if (isAdmin) {
+    if (!token || isAdmin) {
       return
     }
 
     setError('')
     setMessage('')
+    setPlacingOrder(true)
 
     try {
-      await createOrder({ deliveryAddress, items: cart })
+      await api.createOrder({ deliveryAddress, items: cart }, token)
       setMessage('Заказ успешно создан')
       clearCart()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось оформить заказ')
+    } finally {
+      setPlacingOrder(false)
     }
   }
 
@@ -75,8 +94,7 @@ export const ProductsPage = observer(function ProductsPage() {
           <button type="submit">Найти</button>
         </form>
 
-        {productsQuery.error && <div className="error">{productsQuery.error}</div>}
-        {productsQuery.loading ? (
+        {loadingProducts ? (
           <div className="placeholder">Загрузка каталога...</div>
         ) : (
           <div className="product-grid">
@@ -154,8 +172,8 @@ export const ProductsPage = observer(function ProductsPage() {
               </div>
               {message && <div className="success">{message}</div>}
               {error && <div className="error">{error}</div>}
-              <button type="submit" disabled={!cartView.length || isCreating}>
-                {isCreating ? 'Оформление...' : 'Оформить заказ'}
+              <button type="submit" disabled={!cartView.length || placingOrder}>
+                {placingOrder ? 'Оформление...' : 'Оформить заказ'}
               </button>
             </form>
           </>
@@ -163,4 +181,4 @@ export const ProductsPage = observer(function ProductsPage() {
       </aside>
     </div>
   )
-})
+}

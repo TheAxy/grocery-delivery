@@ -1,86 +1,49 @@
-# Личный кабинет системы доставки продуктов питания
+# FreshBox monorepo
 
-Проект соответствует требованиям лабораторной работы: backend на Node.js + TypeScript, frontend на React + TypeScript, общий пакет типов, JWT-авторизация, Swagger, PostgreSQL, Docker, frontend в контейнере nginx, backend в виде микросервисов.
+Проект переведён на монорепозиторную структуру для лабораторной работы №4.
 
-## Состав проекта
+## Структура
 
-- `shared` - общий пакет типов
-- `services/auth-service` - регистрация, вход, профиль пользователя, JWT, вход администратора
-- `services/catalog-service` - каталог продуктов и административное управление товарами
-- `services/orders-service` - заказы пользователя
-- `frontend` - клиентское приложение React + TypeScript
-- `db/init.sql` - инициализация PostgreSQL
-
-## Таблицы PostgreSQL
-
-- `users`
-- `products`
-- `orders`
-- `order_items`
+- `shared` — общие типы для frontend и backend
+- `packages/app-core` — общая frontend-логика, страницы, менеджеры состояний Redux RTK и MobX
+- `packages/webpack-config` — переиспользуемая webpack-конфигурация
+- `apps/host` — host-приложение с авторизацией, header, footer, переключением между microfrontend и logout
+- `apps/catalog-mf` — microfrontend каталога и администрирования товаров
+- `apps/account-mf` — microfrontend заказов и профиля
+- `services/*` — backend-микросервисы
+- `frontend` — Dockerfile и nginx-конфиг для сборки и публикации host-приложения
 
 ## Запуск
 
-1. Скопировать `.env.example` в `.env`
-2. Выполнить:
+1. Заполнить `.env` по примеру `.env.example`
+2. Запустить:
 
 ```bash
+npm config set registry https://registry.npmjs.org/
 docker compose up --build
 ```
 
-## Адреса
+Фронтенд после запуска доступен по адресу `http://localhost:8080`.
 
-- Frontend: `http://localhost:8080`
-- Auth Swagger: `http://localhost:4001/docs`
-- Catalog Swagger: `http://localhost:4002/docs`
-- Orders Swagger: `http://localhost:4003/docs`
+## Microfrontend-маршруты
 
-## Тестовые учетные данные
+- `/catalog` — каталог товаров
+- `/catalog/admin` — управление карточками товаров администратора
+- `/account/orders` — история заказов пользователя
+- `/account/profile` — профиль текущего пользователя
 
-Пользователь:
-- Email: `anna@example.com`
-- Пароль: `password123`
+## Переключение менеджера состояний
 
-Администратор:
-- Логин: `admin`
-- Пароль: `admin123`
+В `.env` можно указать:
 
-## Основные сценарии
+```env
+STATE_MANAGER=redux
+```
 
-- регистрация пользователя
-- вход пользователя
-- вход администратора
-- просмотр каталога продуктов
-- оформление заказа
-- просмотр своих заказов
-- отмена своего заказа
-- просмотр профиля
-- добавление товара администратором
-- редактирование товара администратором
-- удаление товара администратором
+или
 
-## Технологии
+```env
+STATE_MANAGER=mobx
+```
 
-- Node.js
-- TypeScript
-- Express
-- React
-- Vite
-- PostgreSQL
-- Docker
-- Swagger UI
-- nginx
-
-
-## Лабораторная работа №3. Redux RTK
-
-Фронтенд переведен на Redux Toolkit и RTK Query.
-Все данные от backend, включая текущего пользователя, управляются через Redux store.
-RTK Query используется для кэширования запросов каталога, профиля и заказов.
-Результат запроса заказов повторно используется на страницах `Заказы` и `Профиль`.
-
-
-## Лабораторная работа №3. MobX
-
-После применения второго патча проект поддерживает оба менеджера состояний.
-Переключение выполняется через переменную `frontend/.env` со значением `VITE_STATE_MANAGER=redux` или `VITE_STATE_MANAGER=mobx`.
-В архиве второй стадии по умолчанию включен режим `mobx`.
+Все frontend-приложения собираются с одинаковым значением `STATE_MANAGER`.

@@ -1,14 +1,17 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
+ARG STATE_MANAGER=redux
+ENV STATE_MANAGER=$STATE_MANAGER
+COPY .npmrc package.json tsconfig.base.json /app/
 COPY shared /app/shared
-COPY frontend /app/frontend
-WORKDIR /app/shared
-RUN npm install && npm run build
-WORKDIR /app/frontend
-RUN npm install && npm run build
+COPY packages /app/packages
+COPY apps /app/apps
+RUN npm config set registry https://registry.npmjs.org/
+RUN npm install --package-lock=false
+RUN npm run build --workspace @grocery-delivery/host
 
 FROM nginx:1.27-alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/frontend/dist /usr/share/nginx/html
+COPY --from=builder /app/apps/host/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

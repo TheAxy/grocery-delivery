@@ -1,11 +1,11 @@
-import { observer } from 'mobx-react-lite'
 import { FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useSessionModel } from '../state/manager'
+import { api } from '../api'
+import { useAppStore } from '../store'
 
-export const RegisterPage = observer(function RegisterPage() {
+export function RegisterPage() {
   const navigate = useNavigate()
-  const { register } = useSessionModel()
+  const { setAuth } = useAppStore()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,7 +19,8 @@ export const RegisterPage = observer(function RegisterPage() {
     setError('')
 
     try {
-      await register({ name, email, password, address })
+      const response = await api.register({ name, email, password, address })
+      setAuth(response)
       navigate('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось выполнить регистрацию')
@@ -56,4 +57,4 @@ export const RegisterPage = observer(function RegisterPage() {
       </p>
     </div>
   )
-})
+}

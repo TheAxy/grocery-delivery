@@ -66,14 +66,40 @@ services:
     ports:
       - "${ORDERS_PORT}:4003"
 
-  frontend:
+  catalog-mf:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: apps/catalog-mf/Dockerfile
+      args:
+        STATE_MANAGER: ${STATE_MANAGER:-redux}
     depends_on:
       - auth-service
       - catalog-service
       - orders-service
+
+  account-mf:
+    build:
+      context: .
+      dockerfile: apps/account-mf/Dockerfile
+      args:
+        STATE_MANAGER: ${STATE_MANAGER:-redux}
+    depends_on:
+      - auth-service
+      - catalog-service
+      - orders-service
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        STATE_MANAGER: ${STATE_MANAGER:-redux}
+    depends_on:
+      - auth-service
+      - catalog-service
+      - orders-service
+      - catalog-mf
+      - account-mf
     ports:
       - "${FRONTEND_PORT}:80"
 

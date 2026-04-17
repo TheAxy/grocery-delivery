@@ -1,8 +1,8 @@
-import { observer } from 'mobx-react-lite'
-import { ProductPayload } from '@grocery-delivery/shared'
-import { FormEvent, useState } from 'react'
+import { Product, ProductPayload } from '@grocery-delivery/shared'
+import { FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAdminProductActions, useProductsResource, useSessionModel } from '../state/manager'
+import { api } from '../api'
+import { useAppStore } from '../store'
 
 const initialForm: ProductPayload = {
   name: '',
@@ -12,15 +12,32 @@ const initialForm: ProductPayload = {
   imageUrl: ''
 }
 
-export const AdminProductsPage = observer(function AdminProductsPage() {
-  const { user } = useSessionModel()
-  const productsQuery = useProductsResource()
-  const { createProduct, updateProduct, deleteProduct, isSaving, error: mutationError } = useAdminProductActions()
-  const products = [...productsQuery.data].sort((a, b) => a.id - b.id)
+export function AdminProductsPage() {
+  const { token, user } = useAppStore()
+  const [products, setProducts] = useState<Product[]>([])
   const [form, setForm] = useState<ProductPayload>(initialForm)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+
+  const loadProducts = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await api.products()
+      setProducts(response)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить товары')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadProducts()
+  }, [])
 
   if (!user) {
     return null
@@ -37,6 +54,11 @@ export const AdminProductsPage = observer(function AdminProductsPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!token) {
+      return
+    }
+
+    setSaving(true)
     setError('')
     setMessage('')
 
@@ -47,19 +69,23 @@ export const AdminProductsPage = observer(function AdminProductsPage() {
       }
 
       if (editingId) {
-        await updateProduct(editingId, payload)
+        const updated = await api.updateProduct(editingId, payload, token)
+        setProducts((current) => current.map((product) => product.id === editingId ? updated : product))
         setMessage('Товар обновлён')
       } else {
-        await createProduct(payload)
+        const created = await api.createProduct(payload, token)
+        setProducts((current) => [...current, created].sort((a, b) => a.id - b.id))
         setMessage('Товар добавлен')
       }
       resetForm()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось сохранить товар')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const onEdit = (product: typeof products[number]) => {
+  const onEdit = (product: Product) => {
     setEditingId(product.id)
     setForm({
       name: product.name,
@@ -73,11 +99,16 @@ export const AdminProductsPage = observer(function AdminProductsPage() {
   }
 
   const onDelete = async (productId: number) => {
+    if (!token) {
+      return
+    }
+
     setError('')
     setMessage('')
 
     try {
-      await deleteProduct(productId)
+      await api.deleteProduct(productId, token)
+      setProducts((current) => current.filter((product) => product.id !== productId))
       if (editingId === productId) {
         resetForm()
       }
@@ -96,9 +127,9 @@ export const AdminProductsPage = observer(function AdminProductsPage() {
             <p>Добавление, редактирование и удаление карточек каталога</p>
           </div>
         </div>
-        {(error || mutationError || productsQuery.error) && <div className="error">{error || mutationError || productsQuery.error}</div>}
+        {error && <div className="error">{error}</div>}
         {message && <div className="success">{message}</div>}
-        {productsQuery.loading ? (
+        {loading ? (
           <div className="placeholder">Загрузка товаров...</div>
         ) : (
           <div className="admin-products">
@@ -153,11 +184,11 @@ export const AdminProductsPage = observer(function AdminProductsPage() {
             <input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} />
           </label>
           <div className="form-actions">
-            <button type="submit" disabled={isSaving}>{isSaving ? 'Сохранение...' : editingId ? 'Сохранить изменения' : 'Добавить товар'}</button>
+            <button type="submit" disabled={saving}>{saving ? 'Сохранение...' : editingId ? 'Сохранить изменения' : 'Добавить товар'}</button>
             <button type="button" className="ghost-button" onClick={resetForm}>Сбросить</button>
           </div>
         </form>
       </aside>
     </div>
   )
-})
+}

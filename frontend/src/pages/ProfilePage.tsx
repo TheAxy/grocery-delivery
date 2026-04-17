@@ -1,10 +1,7 @@
-import { observer } from 'mobx-react-lite'
-import { useOrdersResource, useSessionModel, useSharedStats } from '../state/manager'
+import { useAppStore } from '../store'
 
-export const ProfilePage = observer(function ProfilePage() {
-  const { user, isAdmin } = useSessionModel()
-  const ordersQuery = useOrdersResource()
-  const stats = useSharedStats()
+export function ProfilePage() {
+  const { user } = useAppStore()
 
   if (!user) {
     return null
@@ -35,31 +32,7 @@ export const ProfilePage = observer(function ProfilePage() {
           <span>Адрес</span>
           <strong>{user.address}</strong>
         </div>
-        {isAdmin ? (
-          <>
-            <div className="profile-row">
-              <span>Товаров в каталоге</span>
-              <strong>{stats.productCount}</strong>
-            </div>
-            <div className="profile-row">
-              <span>Категорий</span>
-              <strong>{stats.categoryCount}</strong>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="profile-row">
-              <span>Всего заказов</span>
-              <strong>{stats.orderCount}</strong>
-            </div>
-            <div className="profile-row">
-              <span>Активные заказы</span>
-              <strong>{stats.activeOrdersCount}</strong>
-            </div>
-          </>
-        )}
       </div>
-      {!isAdmin && ordersQuery.error && <div className="error">{ordersQuery.error}</div>}
     </section>
   )
-})
+}
